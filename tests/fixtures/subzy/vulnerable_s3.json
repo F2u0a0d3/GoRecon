@@ -1,0 +1,10 @@
+{
+  "subdomain": "files.example.com",
+  "service": "Amazon S3",
+  "status_code": 404,
+  "vulnerable": true,
+  "verified": false,
+  "fingerprint": "NoSuchBucket: The specified bucket does not exist",
+  "response": "NoSuchBucket",
+  "timestamp": "2024-01-15T14:31:00Z"
+}

@@ -1,0 +1,230 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gorecon
+  namespace: gorecon
+  labels:
+    app: gorecon
+    component: api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: gorecon
+      component: api
+  template:
+    metadata:
+      labels:
+        app: gorecon
+        component: api
+    spec:
+      serviceAccountName: gorecon
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: gorecon
+        image: gorecon:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: rest-api
+        - containerPort: 8081
+          name: graphql-api
+        - containerPort: 8082
+          name: streaming-api
+        env:
+        - name: GORECON_CONFIG
+          value: /app/config/config.yaml
+        - name: GORECON_LOG_LEVEL
+          value: info
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: gorecon-secrets
+              key: redis-url
+        - name: POSTGRES_URL
+          valueFrom:
+            secretKeyRef:
+              name: gorecon-secrets
+              key: postgres-url
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        - name: data
+          mountPath: /app/data
+        - name: cache
+          mountPath: /app/cache
+        - name: reports
+          mountPath: /app/reports
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: config
+        configMap:
+          name: gorecon-config
+      - name: data
+        persistentVolumeClaim:
+          claimName: gorecon-data
+      - name: cache
+        emptyDir:
+          sizeLimit: 1Gi
+      - name: reports
+        persistentVolumeClaim:
+          claimName: gorecon-reports
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gorecon-coordinator
+  namespace: gorecon
+  labels:
+    app: gorecon
+    component: coordinator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gorecon
+      component: coordinator
+  template:
+    metadata:
+      labels:
+        app: gorecon
+        component: coordinator
+    spec:
+      serviceAccountName: gorecon
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: coordinator
+        image: gorecon:latest
+        imagePullPolicy: Always
+        command: ["gorecon", "coordinator"]
+        args: ["--config", "/app/config/coordinator.yaml"]
+        ports:
+        - containerPort: 8090
+          name: coordinator
+        env:
+        - name: GORECON_CONFIG
+          value: /app/config/coordinator.yaml
+        - name: GORECON_LOG_LEVEL
+          value: info
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: gorecon-secrets
+              key: redis-url
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8090
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8090
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: gorecon-config
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gorecon-worker
+  namespace: gorecon
+  labels:
+    app: gorecon
+    component: worker
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: gorecon
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: gorecon
+        component: worker
+    spec:
+      serviceAccountName: gorecon
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: worker
+        image: gorecon:latest
+        imagePullPolicy: Always
+        command: ["gorecon", "worker"]
+        args: ["--config", "/app/config/worker.yaml"]
+        env:
+        - name: GORECON_CONFIG
+          value: /app/config/worker.yaml
+        - name: GORECON_LOG_LEVEL
+          value: info
+        - name: COORDINATOR_URL
+          value: http://gorecon-coordinator:8090
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        - name: data
+          mountPath: /app/data
+      volumes:
+      - name: config
+        configMap:
+          name: gorecon-config
+      - name: data
+        emptyDir:
+          sizeLimit: 2Gi

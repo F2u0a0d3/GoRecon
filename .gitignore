@@ -1,0 +1,174 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Build directories
+build/
+dist/
+bin/
+
+# Go workspace file
+go.work
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# GoRecon specific
+*.log
+*.db
+*.sqlite
+
+# Working directories
+work/
+workspace/
+tmp/
+temp/
+
+# Reports and output
+reports/
+output/
+results/
+*.jsonl
+*.html
+*.pdf
+*.csv
+
+# Cache files
+cache/
+.cache/
+*.cache
+
+# Configuration files (keep templates)
+config.yaml
+local-config.yaml
+production-config.yaml
+development-config.yaml
+
+# Scope files
+scope.txt
+targets.txt
+domains.txt
+
+# API keys and secrets
+.env
+.env.local
+.env.production
+secrets.yaml
+api-keys.yaml
+
+# External tools
+tools/
+external/
+
+# Test fixtures (large files)
+tests/fixtures/large/
+tests/fixtures/downloads/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Logs
+logs/
+*.log
+
+# Coverage reports
+coverage.txt
+coverage.html
+coverage.xml
+
+# Benchmarks
+*.bench
+benchmarks/
+
+# Profile files
+*.prof
+*.pprof
+
+# Documentation build
+docs/build/
+site/
+
+# Local development
+local/
+dev/
+
+# Containers
+*.tar
+docker-compose.override.yml
+
+# Kubernetes local configs
+k8s-local/
+kubernetes-local/
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Local environment
+.local/
+
+# Session and development files
+*_COMPLETION_REPORT.md
+*_SUMMARY.md
+SESSION_*.md
+PHASE_*.md
+ENVIRONMENT_*.md
+CODE_REVIEW_*.md
+TOOL_VERIFICATION_*.md
+VERIFICATION_REPORT.md
+REAL_TOOL_TESTING_REPORT.md
+2025-*-this-session-*.txt
+
+# Third-party tools (install separately)
+paramspider/
+cloud_enum/
+nuclei-templates/
+
+# Tool testing
+tool-testing/
+test_*
+
+# Archives
+*.tar.gz
+*.zip
+*.rar
+
+# Backup files
+*.backup
+go.mod.backup
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Binary executables
+gorecon
+gorecon.exe

@@ -1,0 +1,30 @@
+{
+  "results": [
+    {
+      "subdomain": "api.example.com",
+      "service": "GitHub Pages",
+      "status_code": 404,
+      "vulnerable": true,
+      "verified": true,
+      "fingerprint": "There isn't a GitHub Pages site here.",
+      "timestamp": "2024-01-15T14:30:00Z"
+    },
+    {
+      "subdomain": "cdn.example.com",
+      "service": "Amazon S3",
+      "status_code": 403,
+      "vulnerable": false,
+      "verified": false,
+      "fingerprint": "Access Denied",
+      "timestamp": "2024-01-15T14:31:00Z"
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "vulnerable": 1,
+    "verified": 1,
+    "potential": 0,
+    "duration_ms": 5432,
+    "timestamp": "2024-01-15T14:35:00Z"
+  }
+}

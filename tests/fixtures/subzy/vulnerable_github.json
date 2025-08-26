@@ -1,0 +1,10 @@
+{
+  "subdomain": "abandoned.example.com",
+  "service": "GitHub Pages",
+  "status_code": 404,
+  "vulnerable": true,
+  "verified": true,
+  "fingerprint": "There isn't a GitHub Pages site here.",
+  "response": "404: Not Found",
+  "timestamp": "2024-01-15T14:30:00Z"
+}

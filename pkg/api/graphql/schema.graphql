@@ -1,0 +1,579 @@
+# GoRecon GraphQL Schema
+# Comprehensive schema for all GoRecon operations
+
+scalar Time
+scalar JSON
+scalar Upload
+
+type Query {
+    # Health and system information
+    health: Health!
+    version: Version!
+    stats: SystemStats!
+
+    # Scans
+    scans(
+        page: Int = 1
+        limit: Int = 20
+        status: ScanStatus
+        target: String
+    ): ScanConnection!
+    
+    scan(id: ID!): Scan
+    scanResults(scanId: ID!, format: String): ScanResults!
+    scanStatus(scanId: ID!): ScanProgress!
+
+    # Plugins
+    plugins(category: String, enabled: Boolean): [Plugin!]!
+    plugin(id: ID!): Plugin
+
+    # Intelligence
+    correlation(id: ID!): Correlation
+    correlations(scanId: ID!): [Correlation!]!
+    attackPaths(scanId: ID!): [AttackPath!]!
+    riskAssessment(scanId: ID!): RiskAssessment!
+    
+    # Reports
+    reports(page: Int = 1, limit: Int = 20): ReportConnection!
+    report(id: ID!): Report
+    
+    # Real-time data
+    activeScanProgress(scanId: ID!): ScanProgress!
+    systemMetrics: SystemMetrics!
+}
+
+type Mutation {
+    # Scan operations
+    createScan(input: CreateScanInput!): CreateScanPayload!
+    stopScan(scanId: ID!): StopScanPayload!
+    deleteScan(scanId: ID!): DeleteScanPayload!
+    
+    # Plugin operations
+    executePlugin(input: ExecutePluginInput!): ExecutePluginPayload!
+    validatePlugin(pluginId: ID!): ValidatePluginPayload!
+    
+    # Intelligence operations
+    correlateFindings(input: CorrelationInput!): CorrelationPayload!
+    analyzeResults(input: AnalysisInput!): AnalysisPayload!
+    
+    # Report operations
+    generateReport(input: ReportInput!): ReportPayload!
+    
+    # Configuration
+    updateScanProfile(input: ProfileInput!): ProfilePayload!
+}
+
+type Subscription {
+    # Real-time scan updates
+    scanProgress(scanId: ID!): ScanProgress!
+    scanFindings(scanId: ID!): Finding!
+    
+    # System notifications
+    systemEvents: SystemEvent!
+    securityAlerts: SecurityAlert!
+    
+    # Intelligence updates
+    newCorrelations(scanId: ID): Correlation!
+    riskUpdates(scanId: ID): RiskUpdate!
+}
+
+# Core Types
+
+type Health {
+    status: String!
+    timestamp: Time!
+    version: String!
+    services: ServiceHealth!
+}
+
+type ServiceHealth {
+    database: String!
+    redis: String!
+    plugins: String!
+    correlator: String!
+}
+
+type Version {
+    version: String!
+    commit: String!
+    buildDate: String!
+    goVersion: String!
+}
+
+type SystemStats {
+    totalScans: Int!
+    activeScans: Int!
+    totalFindings: Int!
+    pluginsLoaded: Int!
+    correlations: Int!
+    uptimeSeconds: Int!
+}
+
+type SystemMetrics {
+    cpu: CPUMetrics!
+    memory: MemoryMetrics!
+    disk: DiskMetrics!
+    network: NetworkMetrics!
+}
+
+type CPUMetrics {
+    usage: Float!
+    cores: Int!
+    loadAverage: [Float!]!
+}
+
+type MemoryMetrics {
+    used: Int!
+    total: Int!
+    cached: Int!
+    buffers: Int!
+}
+
+type DiskMetrics {
+    used: Int!
+    total: Int!
+    available: Int!
+    ioRead: Int!
+    ioWrite: Int!
+}
+
+type NetworkMetrics {
+    bytesIn: Int!
+    bytesOut: Int!
+    packetsIn: Int!
+    packetsOut: Int!
+}
+
+# Scan Types
+
+type Scan {
+    id: ID!
+    target: String!
+    status: ScanStatus!
+    profile: String!
+    createdAt: Time!
+    updatedAt: Time!
+    completedAt: Time
+    plugins: [String!]!
+    findings: [Finding!]!
+    findingsCount: Int!
+    progress: ScanProgress!
+    metadata: JSON
+    options: JSON
+    correlation: Correlation
+    riskAssessment: RiskAssessment
+}
+
+type ScanConnection {
+    nodes: [Scan!]!
+    pageInfo: PageInfo!
+    totalCount: Int!
+}
+
+type ScanProgress {
+    scanId: ID!
+    status: ScanStatus!
+    totalPlugins: Int!
+    completedPlugins: Int!
+    currentPlugin: String
+    percentage: Float!
+    startTime: Time!
+    elapsedTime: String!
+    estimatedTimeRemaining: String
+    statistics: ScanStatistics!
+}
+
+type ScanStatistics {
+    findingsCount: Int!
+    requestsMade: Int!
+    errorsEncountered: Int!
+    rateLimited: Boolean!
+    averageResponseTime: Float!
+}
+
+type ScanResults {
+    scanId: ID!
+    findings: [Finding!]!
+    summary: ScanSummary!
+    correlation: Correlation
+    rawData: JSON
+}
+
+type ScanSummary {
+    totalFindings: Int!
+    bySeverity: SeverityBreakdown!
+    byPlugin: PluginBreakdown!
+    byCategory: CategoryBreakdown!
+}
+
+type SeverityBreakdown {
+    critical: Int!
+    high: Int!
+    medium: Int!
+    low: Int!
+    info: Int!
+}
+
+type PluginBreakdown {
+    cloudEnum: Int!
+    gau: Int!
+    meg: Int!
+    jsluice: Int!
+    other: JSON!
+}
+
+type CategoryBreakdown {
+    vulnerability: Int!
+    misconfiguration: Int!
+    informationDisclosure: Int!
+    other: JSON!
+}
+
+enum ScanStatus {
+    CREATED
+    QUEUED
+    RUNNING
+    PAUSED
+    COMPLETED
+    FAILED
+    STOPPED
+    CANCELLED
+}
+
+# Plugin Types
+
+type Plugin {
+    id: ID!
+    name: String!
+    description: String!
+    version: String!
+    author: String!
+    category: String!
+    enabled: Boolean!
+    installed: Boolean!
+    configuration: JSON!
+    dependencies: [String!]!
+    capabilities: [String!]!
+    metrics: PluginMetrics!
+}
+
+type PluginMetrics {
+    totalExecutions: Int!
+    successfulRuns: Int!
+    failedRuns: Int!
+    averageRuntime: String!
+    lastExecuted: Time
+}
+
+# Finding Types
+
+type Finding {
+    id: ID!
+    plugin: String!
+    target: Target!
+    finding: String!
+    description: String!
+    severity: Severity!
+    confidence: Float!
+    timestamp: Time!
+    category: String!
+    cvssScore: Float
+    exploitAvailable: Boolean!
+    mitreTechniques: [String!]!
+    threatTypes: [String!]!
+    attackVector: String
+    metadata: JSON!
+    evidence: [Evidence!]!
+}
+
+type Target {
+    domain: String
+    ip: String
+    port: String
+    service: String
+    url: String
+}
+
+type Evidence {
+    type: String!
+    value: String!
+    description: String!
+    confidence: Float!
+}
+
+enum Severity {
+    CRITICAL
+    HIGH
+    MEDIUM
+    LOW
+    INFO
+}
+
+# Intelligence Types
+
+type Correlation {
+    id: ID!
+    type: CorrelationType!
+    findings: [Finding!]!
+    score: Float!
+    confidence: Float!
+    description: String!
+    evidence: [String!]!
+    attackPath: AttackPath
+    createdAt: Time!
+    metadata: JSON!
+}
+
+enum CorrelationType {
+    DOMAIN
+    IP
+    SERVICE
+    VULNERABILITY
+    TECHNOLOGY
+    ATTACK_PATH
+    ANOMALY
+}
+
+type AttackPath {
+    id: ID!
+    name: String!
+    description: String!
+    steps: [AttackStep!]!
+    likelihood: Float!
+    impact: Float!
+    riskScore: Float!
+    mitreTechniques: [String!]!
+    tactics: [String!]!
+    mitigations: [String!]!
+    difficulty: String!
+}
+
+type AttackStep {
+    stepNumber: Int!
+    technique: String!
+    description: String!
+    mitreTechnique: String!
+    prerequisites: [String!]!
+    tools: [String!]!
+    evidence: [Finding!]!
+    difficulty: String!
+}
+
+type RiskAssessment {
+    scanId: ID!
+    overallRisk: Float!
+    riskLevel: RiskLevel!
+    riskFactors: [RiskFactor!]!
+    businessImpact: BusinessImpact!
+    recommendations: [String!]!
+    generatedAt: Time!
+}
+
+type RiskFactor {
+    factor: String!
+    score: Float!
+    weight: Float!
+    description: String!
+    evidence: [String!]!
+    impact: String!
+}
+
+type BusinessImpact {
+    financial: String!
+    operational: String!
+    reputational: String!
+    regulatory: String!
+    affectedSystems: [String!]!
+    criticalityLevel: String!
+}
+
+enum RiskLevel {
+    CRITICAL
+    HIGH
+    MEDIUM
+    LOW
+    INFO
+}
+
+# Report Types
+
+type Report {
+    id: ID!
+    scanId: ID!
+    formats: [String!]!
+    template: String!
+    status: ReportStatus!
+    createdAt: Time!
+    completedAt: Time
+    files: JSON!
+    sizeBytes: Int!
+    downloadUrl: String
+}
+
+type ReportConnection {
+    nodes: [Report!]!
+    pageInfo: PageInfo!
+    totalCount: Int!
+}
+
+enum ReportStatus {
+    GENERATING
+    COMPLETED
+    FAILED
+}
+
+# Event Types
+
+type SystemEvent {
+    id: ID!
+    type: String!
+    message: String!
+    timestamp: Time!
+    metadata: JSON!
+    severity: String!
+}
+
+type SecurityAlert {
+    id: ID!
+    type: String!
+    message: String!
+    severity: String!
+    timestamp: Time!
+    scanId: ID
+    findingId: ID
+    acknowledged: Boolean!
+    metadata: JSON!
+}
+
+type RiskUpdate {
+    scanId: ID!
+    riskScore: Float!
+    riskLevel: RiskLevel!
+    timestamp: Time!
+    changes: [String!]!
+}
+
+# Input Types
+
+input CreateScanInput {
+    target: String!
+    plugins: [String!]
+    profile: String
+    options: JSON
+    metadata: JSON
+}
+
+input ExecutePluginInput {
+    pluginId: ID!
+    target: String!
+    options: JSON
+}
+
+input CorrelationInput {
+    scanId: ID!
+    findings: [ID!]
+    options: JSON
+}
+
+input AnalysisInput {
+    scanId: ID!
+    includeAttackPaths: Boolean = true
+    includeRiskAssessment: Boolean = true
+    options: JSON
+}
+
+input ReportInput {
+    scanId: ID!
+    formats: [String!]!
+    template: String
+    includeRawData: Boolean = false
+    options: JSON
+}
+
+input ProfileInput {
+    name: String!
+    description: String
+    plugins: [String!]!
+    rateLimit: RateLimitInput
+    options: JSON
+}
+
+input RateLimitInput {
+    requestsPerSecond: Float!
+    humanMode: Boolean = false
+    jitter: Boolean = false
+}
+
+# Payload Types
+
+type CreateScanPayload {
+    scan: Scan
+    errors: [Error!]!
+}
+
+type StopScanPayload {
+    scanId: ID!
+    success: Boolean!
+    message: String!
+    errors: [Error!]!
+}
+
+type DeleteScanPayload {
+    scanId: ID!
+    success: Boolean!
+    message: String!
+    errors: [Error!]!
+}
+
+type ExecutePluginPayload {
+    executionId: ID!
+    status: String!
+    errors: [Error!]!
+}
+
+type ValidatePluginPayload {
+    pluginId: ID!
+    valid: Boolean!
+    checks: JSON!
+    warnings: [String!]!
+    errors: [Error!]!
+}
+
+type CorrelationPayload {
+    correlationId: ID!
+    status: String!
+    errors: [Error!]!
+}
+
+type AnalysisPayload {
+    analysisId: ID!
+    status: String!
+    errors: [Error!]!
+}
+
+type ReportPayload {
+    reportId: ID!
+    status: String!
+    errors: [Error!]!
+}
+
+type ProfilePayload {
+    profile: JSON!
+    success: Boolean!
+    errors: [Error!]!
+}
+
+# Utility Types
+
+type PageInfo {
+    hasNextPage: Boolean!
+    hasPreviousPage: Boolean!
+    startCursor: String
+    endCursor: String
+}
+
+type Error {
+    message: String!
+    code: String!
+    field: String
+}

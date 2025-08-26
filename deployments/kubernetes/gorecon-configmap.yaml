@@ -1,0 +1,310 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gorecon-config
+  namespace: gorecon
+  labels:
+    app: gorecon
+data:
+  config.yaml: |
+    # GoRecon Configuration
+    data_dir: /app/data
+    log_level: info
+    log_format: json
+    
+    # Database configuration
+    database:
+      type: postgres
+      host: gorecon-postgres
+      port: 5432
+      name: gorecon
+      user: gorecon
+      ssl_mode: disable
+      max_connections: 25
+      max_idle_connections: 10
+      connection_max_lifetime: 1h
+    
+    # Cache configuration
+    cache:
+      enabled: true
+      directory: /app/cache
+      redis:
+        enabled: true
+        address: gorecon-redis:6379
+        password: redis123
+        db: 0
+        max_retries: 3
+        pool_size: 10
+      l1:
+        size: 10000
+        ttl: 10m
+      l2:
+        size: 100000
+        ttl: 1h
+      l3:
+        enabled: false
+    
+    # Plugin configuration
+    plugins:
+      enabled: true
+      timeout: 300s
+      max_concurrent: 10
+      directory: /app/plugins
+      auto_discover: true
+      sandbox: true
+    
+    # Rate limiting
+    rate_limit:
+      enabled: true
+      global_rps: 20.0
+      per_plugin_rps: 5.0
+      per_domain_rps: 2.0
+      burst_size: 10
+      human_mode: false
+    
+    # Output configuration
+    output:
+      directory: /app/reports
+      formats: ["json", "html", "csv"]
+      include_metadata: true
+      compress: true
+    
+    # API configuration
+    api:
+      enabled: true
+      host: 0.0.0.0
+      rest:
+        enabled: true
+        port: 8080
+        cors: true
+        rate_limit: true
+      graphql:
+        enabled: true
+        port: 8081
+        introspection: true
+        playground: true
+      streaming:
+        enabled: true
+        port: 8082
+        websocket: true
+        sse: true
+    
+    # Distributed configuration
+    distributed:
+      enabled: false
+      coordinator:
+        enabled: false
+        address: gorecon-coordinator:8090
+        heartbeat_interval: 30s
+      worker:
+        enabled: false
+        max_jobs: 10
+        coordinator_url: http://gorecon-coordinator:8090
+    
+    # Security configuration
+    security:
+      sandbox:
+        enabled: true
+        timeout: 300s
+      validation:
+        strict: true
+        max_targets: 1000
+      tls:
+        enabled: false
+    
+    # Intelligence configuration
+    intelligence:
+      correlation:
+        enabled: true
+        risk_scoring: true
+        attack_path_discovery: true
+      mitre:
+        enabled: true
+        update_interval: 24h
+      ml:
+        enabled: false
+    
+    # Telemetry configuration
+    telemetry:
+      prometheus:
+        enabled: true
+        port: 9090
+        endpoint: /metrics
+      opentelemetry:
+        enabled: true
+        endpoint: http://jaeger:14268/api/traces
+      jaeger:
+        enabled: true
+        endpoint: http://jaeger:14268/api/traces
+
+  coordinator.yaml: |
+    # Coordinator Configuration
+    log_level: info
+    log_format: json
+    
+    # Server configuration
+    server:
+      host: 0.0.0.0
+      port: 8090
+      read_timeout: 15s
+      write_timeout: 15s
+      idle_timeout: 60s
+    
+    # Redis configuration
+    redis:
+      address: gorecon-redis:6379
+      password: redis123
+      db: 1
+      pool_size: 10
+    
+    # Worker management
+    workers:
+      max_workers: 100
+      health_check_interval: 30s
+      heartbeat_timeout: 90s
+      job_timeout: 600s
+    
+    # Load balancing
+    load_balancer:
+      strategy: round_robin
+      health_check: true
+      max_retries: 3
+    
+    # Telemetry
+    telemetry:
+      prometheus:
+        enabled: true
+        port: 9091
+        endpoint: /metrics
+
+  worker.yaml: |
+    # Worker Configuration
+    log_level: info
+    log_format: json
+    
+    # Worker identification
+    worker:
+      id: ""  # Auto-generated if empty
+      max_jobs: 10
+      heartbeat_interval: 30s
+      reconnect_interval: 5s
+      max_reconnect_attempts: 10
+    
+    # Coordinator connection
+    coordinator:
+      url: http://gorecon-coordinator:8090
+      timeout: 30s
+      retry_interval: 5s
+    
+    # Plugin configuration
+    plugins:
+      enabled: true
+      timeout: 300s
+      directory: /app/plugins
+      sandbox: true
+    
+    # Cache configuration
+    cache:
+      enabled: true
+      directory: /tmp/worker-cache
+      size_limit: 1GB
+      ttl: 1h
+    
+    # Telemetry
+    telemetry:
+      prometheus:
+        enabled: true
+        port: 9092
+        endpoint: /metrics
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gorecon-profiles
+  namespace: gorecon
+  labels:
+    app: gorecon
+    component: profiles
+data:
+  default.yaml: |
+    # Default Scan Profile
+    name: default
+    description: Default comprehensive security assessment
+    
+    plugins:
+      - gau
+      - cloud_enum
+      - meg
+      - jsluice
+      - param_discovery
+    
+    rate_limit:
+      requests_per_second: 5.0
+      human_mode: false
+      jitter: true
+    
+    output:
+      formats: ["json", "html"]
+      include_metadata: true
+      detailed_results: true
+    
+    intelligence:
+      correlation: true
+      risk_scoring: true
+      mitre_mapping: true
+    
+    timeout: 30m
+
+  fast.yaml: |
+    # Fast Scan Profile
+    name: fast
+    description: Quick security assessment with essential checks
+    
+    plugins:
+      - gau
+      - jsluice
+    
+    rate_limit:
+      requests_per_second: 10.0
+      human_mode: false
+    
+    output:
+      formats: ["json"]
+      include_metadata: false
+    
+    intelligence:
+      correlation: false
+      risk_scoring: true
+    
+    timeout: 10m
+
+  comprehensive.yaml: |
+    # Comprehensive Scan Profile
+    name: comprehensive
+    description: In-depth security assessment with all plugins
+    
+    plugins:
+      - gau
+      - cloud_enum
+      - meg
+      - jsluice
+      - param_discovery
+    
+    rate_limit:
+      requests_per_second: 2.0
+      human_mode: true
+      jitter: true
+    
+    output:
+      formats: ["json", "html", "csv", "pdf"]
+      include_metadata: true
+      detailed_results: true
+    
+    intelligence:
+      correlation: true
+      risk_scoring: true
+      mitre_mapping: true
+      attack_path_discovery: true
+    
+    timeout: 2h

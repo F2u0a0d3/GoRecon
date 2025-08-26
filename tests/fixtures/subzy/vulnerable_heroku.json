@@ -1,0 +1,10 @@
+{
+  "subdomain": "app.example.com",
+  "service": "Heroku",
+  "status_code": 404,
+  "vulnerable": true,
+  "verified": true,
+  "fingerprint": "No such app",
+  "response": "Heroku | No such app",
+  "timestamp": "2024-01-15T14:32:00Z"
+}

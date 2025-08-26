@@ -1,0 +1,38 @@
+[
+  {
+    "subdomain": "test1.example.com",
+    "service": "GitHub Pages",
+    "status_code": 404,
+    "vulnerable": true,
+    "verified": true,
+    "fingerprint": "There isn't a GitHub Pages site here.",
+    "timestamp": "2024-01-15T14:30:00Z"
+  },
+  {
+    "subdomain": "test2.example.com",
+    "service": "Amazon S3",
+    "status_code": 404,
+    "vulnerable": true,
+    "verified": false,
+    "fingerprint": "NoSuchBucket",
+    "timestamp": "2024-01-15T14:31:00Z"
+  },
+  {
+    "subdomain": "test3.example.com",
+    "service": "CloudFlare",
+    "status_code": 200,
+    "vulnerable": false,
+    "verified": false,
+    "fingerprint": "",
+    "timestamp": "2024-01-15T14:32:00Z"
+  },
+  {
+    "subdomain": "staging.example.com",
+    "service": "Netlify",
+    "status_code": 404,
+    "vulnerable": true,
+    "verified": true,
+    "fingerprint": "Not Found - Request ID:",
+    "timestamp": "2024-01-15T14:33:00Z"
+  }
+]

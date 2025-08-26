@@ -1,0 +1,193 @@
+version: '3.8'
+
+services:
+  gorecon:
+    build:
+      context: ../../
+      dockerfile: deployments/docker/Dockerfile
+    container_name: gorecon
+    restart: unless-stopped
+    ports:
+      - "8080:8080"  # REST API
+      - "8081:8081"  # GraphQL API  
+      - "8082:8082"  # Streaming API
+    environment:
+      - GORECON_CONFIG=/app/config/config.yaml
+      - GORECON_LOG_LEVEL=info
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgres://gorecon:gorecon123@postgres:5432/gorecon?sslmode=disable
+    volumes:
+      - gorecon_data:/app/data
+      - gorecon_cache:/app/cache
+      - gorecon_reports:/app/reports
+      - gorecon_logs:/app/logs
+      - ./config:/app/config:ro
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - gorecon_network
+    healthcheck:
+      test: ["CMD", "gorecon", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: gorecon_postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=gorecon
+      - POSTGRES_USER=gorecon
+      - POSTGRES_PASSWORD=gorecon123
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - gorecon_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gorecon -d gorecon"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: gorecon_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass redis123
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - gorecon_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  gorecon-coordinator:
+    build:
+      context: ../../
+      dockerfile: deployments/docker/Dockerfile
+    container_name: gorecon_coordinator
+    restart: unless-stopped
+    command: ["gorecon", "coordinator", "--config", "/app/config/coordinator.yaml"]
+    ports:
+      - "8090:8090"  # Coordinator API
+    environment:
+      - GORECON_CONFIG=/app/config/coordinator.yaml
+      - GORECON_LOG_LEVEL=info
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - gorecon_coordinator_data:/app/data
+      - ./config:/app/config:ro
+    depends_on:
+      - redis
+    networks:
+      - gorecon_network
+
+  gorecon-worker:
+    build:
+      context: ../../
+      dockerfile: deployments/docker/Dockerfile
+    container_name: gorecon_worker
+    restart: unless-stopped
+    command: ["gorecon", "worker", "--config", "/app/config/worker.yaml"]
+    environment:
+      - GORECON_CONFIG=/app/config/worker.yaml
+      - GORECON_LOG_LEVEL=info
+      - COORDINATOR_URL=http://gorecon-coordinator:8090
+    volumes:
+      - gorecon_worker_data:/app/data
+      - ./config:/app/config:ro
+    depends_on:
+      - gorecon-coordinator
+    networks:
+      - gorecon_network
+    deploy:
+      replicas: 2
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: gorecon_prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - gorecon_network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: gorecon_grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - gorecon_network
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: gorecon_jaeger
+    restart: unless-stopped
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - gorecon_network
+
+networks:
+  gorecon_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  gorecon_data:
+    driver: local
+  gorecon_cache:
+    driver: local
+  gorecon_reports:
+    driver: local
+  gorecon_logs:
+    driver: local
+  gorecon_coordinator_data:
+    driver: local
+  gorecon_worker_data:
+    driver: local
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local

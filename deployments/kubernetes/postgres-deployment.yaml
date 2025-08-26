@@ -1,0 +1,247 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gorecon-postgres
+  namespace: gorecon
+  labels:
+    app: gorecon
+    component: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gorecon
+      component: postgres
+  template:
+    metadata:
+      labels:
+        app: gorecon
+        component: postgres
+    spec:
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_DB
+          value: gorecon
+        - name: POSTGRES_USER
+          value: gorecon
+        - name: POSTGRES_PASSWORD
+          value: gorecon123
+        - name: POSTGRES_INITDB_ARGS
+          value: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        - name: postgres-init
+          mountPath: /docker-entrypoint-initdb.d
+          readOnly: true
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - gorecon
+            - -d
+            - gorecon
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - gorecon
+            - -d
+            - gorecon
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: postgres-data
+      - name: postgres-init
+        configMap:
+          name: postgres-init
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gorecon-postgres
+  namespace: gorecon
+  labels:
+    app: gorecon
+    component: postgres
+spec:
+  type: ClusterIP
+  selector:
+    app: gorecon
+    component: postgres
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: 5432
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  namespace: gorecon
+  labels:
+    app: gorecon
+    component: postgres
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: fast-ssd
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: gorecon
+  labels:
+    app: gorecon
+    component: postgres
+data:
+  init.sql: |
+    -- GoRecon Database Schema
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+    
+    -- Scans table
+    CREATE TABLE IF NOT EXISTS scans (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        target VARCHAR(255) NOT NULL,
+        profile VARCHAR(100) NOT NULL DEFAULT 'default',
+        status VARCHAR(50) NOT NULL DEFAULT 'pending',
+        started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        completed_at TIMESTAMP WITH TIME ZONE,
+        duration INTERVAL,
+        findings_count INTEGER DEFAULT 0,
+        errors_count INTEGER DEFAULT 0,
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    
+    -- Findings table
+    CREATE TABLE IF NOT EXISTS findings (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        scan_id UUID NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
+        plugin VARCHAR(100) NOT NULL,
+        type VARCHAR(100) NOT NULL,
+        title VARCHAR(500) NOT NULL,
+        description TEXT,
+        severity VARCHAR(20) NOT NULL,
+        confidence VARCHAR(20) NOT NULL DEFAULT 'medium',
+        url VARCHAR(2000),
+        method VARCHAR(10),
+        request_data TEXT,
+        response_data TEXT,
+        evidence JSONB DEFAULT '{}',
+        metadata JSONB DEFAULT '{}',
+        mitre_techniques TEXT[],
+        cvss_score DECIMAL(3,1),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    
+    -- Intelligence correlations table
+    CREATE TABLE IF NOT EXISTS correlations (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        scan_id UUID NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
+        finding_ids UUID[] NOT NULL,
+        correlation_type VARCHAR(100) NOT NULL,
+        confidence_score DECIMAL(3,2) NOT NULL,
+        risk_score DECIMAL(3,1),
+        attack_path JSONB,
+        mitre_techniques TEXT[],
+        description TEXT,
+        recommendations TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    
+    -- Plugin executions table
+    CREATE TABLE IF NOT EXISTS plugin_executions (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        scan_id UUID NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
+        plugin VARCHAR(100) NOT NULL,
+        status VARCHAR(50) NOT NULL,
+        started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        completed_at TIMESTAMP WITH TIME ZONE,
+        duration INTERVAL,
+        findings_count INTEGER DEFAULT 0,
+        errors_count INTEGER DEFAULT 0,
+        error_message TEXT,
+        metadata JSONB DEFAULT '{}'
+    );
+    
+    -- Cache entries table
+    CREATE TABLE IF NOT EXISTS cache_entries (
+        key VARCHAR(255) PRIMARY KEY,
+        value BYTEA NOT NULL,
+        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    
+    -- Indexes for performance
+    CREATE INDEX IF NOT EXISTS idx_scans_target ON scans(target);
+    CREATE INDEX IF NOT EXISTS idx_scans_status ON scans(status);
+    CREATE INDEX IF NOT EXISTS idx_scans_started_at ON scans(started_at);
+    CREATE INDEX IF NOT EXISTS idx_findings_scan_id ON findings(scan_id);
+    CREATE INDEX IF NOT EXISTS idx_findings_plugin ON findings(plugin);
+    CREATE INDEX IF NOT EXISTS idx_findings_severity ON findings(severity);
+    CREATE INDEX IF NOT EXISTS idx_findings_created_at ON findings(created_at);
+    CREATE INDEX IF NOT EXISTS idx_correlations_scan_id ON correlations(scan_id);
+    CREATE INDEX IF NOT EXISTS idx_plugin_executions_scan_id ON plugin_executions(scan_id);
+    CREATE INDEX IF NOT EXISTS idx_plugin_executions_plugin ON plugin_executions(plugin);
+    CREATE INDEX IF NOT EXISTS idx_cache_expires_at ON cache_entries(expires_at);
+    
+    -- Full text search indexes
+    CREATE INDEX IF NOT EXISTS idx_findings_title_fts ON findings USING gin(to_tsvector('english', title));
+    CREATE INDEX IF NOT EXISTS idx_findings_description_fts ON findings USING gin(to_tsvector('english', description));
+    
+    -- JSONB indexes
+    CREATE INDEX IF NOT EXISTS idx_findings_metadata ON findings USING gin(metadata);
+    CREATE INDEX IF NOT EXISTS idx_correlations_attack_path ON correlations USING gin(attack_path);
+    
+    -- Functions and triggers for updated_at
+    CREATE OR REPLACE FUNCTION update_updated_at_column()
+    RETURNS TRIGGER AS $$
+    BEGIN
+        NEW.updated_at = NOW();
+        RETURN NEW;
+    END;
+    $$ language 'plpgsql';
+    
+    DROP TRIGGER IF EXISTS update_scans_updated_at ON scans;
+    CREATE TRIGGER update_scans_updated_at 
+        BEFORE UPDATE ON scans 
+        FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    
+    -- Grant permissions
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO gorecon;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO gorecon;
+    GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO gorecon;

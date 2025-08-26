@@ -1,0 +1,101 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gorecon
+  labels:
+    name: gorecon
+    app: gorecon
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gorecon
+  namespace: gorecon
+  labels:
+    app: gorecon
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: gorecon
+  name: gorecon-role
+  labels:
+    app: gorecon
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gorecon-rolebinding
+  namespace: gorecon
+  labels:
+    app: gorecon
+subjects:
+- kind: ServiceAccount
+  name: gorecon
+  namespace: gorecon
+roleRef:
+  kind: Role
+  name: gorecon-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gorecon-secrets
+  namespace: gorecon
+  labels:
+    app: gorecon
+type: Opaque
+stringData:
+  postgres-url: "postgres://gorecon:gorecon123@gorecon-postgres:5432/gorecon?sslmode=disable"
+  redis-url: "redis://:redis123@gorecon-redis:6379/0"
+  jwt-secret: "your-jwt-secret-here-change-in-production"
+  api-key: "your-api-key-here-change-in-production"
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gorecon-data
+  namespace: gorecon
+  labels:
+    app: gorecon
+    component: data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: fast-ssd
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gorecon-reports
+  namespace: gorecon
+  labels:
+    app: gorecon
+    component: reports
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: standard

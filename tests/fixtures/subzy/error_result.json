@@ -1,0 +1,10 @@
+{
+  "subdomain": "timeout.example.com",
+  "service": "Unknown",
+  "status_code": 0,
+  "vulnerable": false,
+  "verified": false,
+  "fingerprint": "",
+  "error": "Connection timeout after 30 seconds",
+  "timestamp": "2024-01-15T14:34:00Z"
+}

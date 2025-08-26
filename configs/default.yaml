@@ -1,0 +1,402 @@
+global:
+  # Core settings
+  version: "2.0.0"
+  workdir: "~/.gorecon/work"
+  outdir: "~/.gorecon/reports"
+  
+  # Execution control
+  concurrency: 8
+  plugin_timeout: "15m"
+  global_timeout: "2h"
+  retry_attempts: 3
+  retry_delay: "30s"
+  
+  # Safety settings
+  confirm_active_scans: false
+  scope_enforcement: true
+  scope_file: "~/.gorecon/scope.txt"
+  default_scope: []
+  denylist_targets: []
+  
+  # Resource limits
+  max_memory_mb: 2048
+  max_disk_mb: 10240
+  max_processes: 50
+  
+  # Performance
+  cache:
+    enabled: true
+    l1_size_mb: 512
+    l2_enabled: true
+    l2_redis_url: "redis://localhost:6379"
+    l3_enabled: false
+    l3_s3_bucket: ""
+  
+  # Intelligence
+  intelligence:
+    correlation_enabled: true
+    anomaly_detection: true
+    attack_path_analysis: true
+    risk_scoring: true
+    ml_models_path: "~/.gorecon/models"
+  
+  # Distributed mode
+  distributed:
+    enabled: false
+    mode: "coordinator" # coordinator|worker
+    coordinator_url: ""
+    nats_url: "nats://localhost:4222"
+    worker_id: ""
+  
+  # API settings
+  api:
+    enabled: true
+    rest_port: 8080
+    graphql_port: 8081
+    grpc_port: 50051
+    auth_enabled: true
+    rate_limit_rps: 100
+  
+  # Streaming
+  streaming:
+    enabled: true
+    websocket_port: 8082
+    sse_enabled: true
+    buffer_size: 1000
+  
+  # Output settings
+  log_level: "info"
+  log_format: "json"
+  redact_secrets: true
+  save_raw_output: true
+  compress_output: true
+  
+  # Telemetry
+  telemetry:
+    metrics_enabled: true
+    metrics_port: 9090
+    tracing_enabled: true
+    tracing_endpoint: "http://localhost:14268/api/traces"
+
+# Scan profiles
+profiles:
+  stealth:
+    name: "Stealth Mode"
+    description: "Low and slow scanning to avoid detection"
+    rate_limit:
+      requests_per_second: 1
+      burst_size: 5
+      jitter: "1s-5s"
+      human_mode: true
+    plugins:
+      passive_only: true
+      exclude: ["portscan", "vuln"]
+    evasion:
+      rotate_user_agents: true
+      use_proxies: true
+      randomize_headers: true
+      delay_pattern: "human"
+   
+  aggressive:
+    name: "Aggressive Mode"
+    description: "Fast, comprehensive scanning"
+    rate_limit:
+      requests_per_second: 50
+      burst_size: 100
+    plugins:
+      enable_all: true
+      parallel_execution: true
+      max_workers: 20
+    resource_limits:
+      max_memory_mb: 4096
+      max_cpu_cores: 8
+   
+  passive:
+    name: "Passive Only"
+    description: "No active scanning, only passive reconnaissance"
+    plugins:
+      categories: ["wayback", "github", "js"]
+      exclude_active: true
+    rate_limit:
+      requests_per_second: 10
+   
+  custom:
+    name: "Custom Profile"
+    description: "User-defined scanning profile"
+    inherit_from: "default"
+    overrides:
+      plugins: {}
+      rate_limit: {}
+
+# Plugin-specific configurations
+plugins:
+  cloud:
+    enabled: true
+    primary_tool: "cloud_enum"
+    fallback_tools: ["cloudbrute", "awsbucketdump"]
+    validate_findings: true
+    max_findings: 1000
+    cache_ttl: "24h"
+    intelligence:
+      correlate_with: ["wayback", "js"]
+      risk_weight: 0.8
+   
+  wayback:
+    enabled: true
+    primary_tool: "gau"
+    fallback_tools: ["waybackurls", "waymore"]
+    validate_findings: false
+    max_findings: 10000
+    cache_ttl: "7d"
+    intelligence:
+      extract_patterns: true
+      identify_api_endpoints: true
+      correlate_with: ["js", "param"]
+   
+  portscan:
+    enabled: false
+    primary_tool: "smap"
+    fallback_tools: ["nmap", "masscan"]
+    validate_findings: true
+    max_findings: 1000
+    cache_ttl: "1h"
+    sandboxed: true
+    resource_limits:
+      max_memory_mb: 512
+      max_cpu_percent: 50
+   
+  httpprobe:
+    enabled: true
+    primary_tool: "httpx"
+    fallback_tools: ["hakcheckurl"]
+    validate_findings: false
+    max_findings: 5000
+    cache_ttl: "1h"
+    
+  js:
+    enabled: true
+    primary_tool: "jsluice"
+    fallback_tools: ["linkfinder"]
+    validate_findings: false
+    max_findings: 2000
+    cache_ttl: "4h"
+    intelligence:
+      map_api_endpoints: true
+      detect_frameworks: true
+      extract_dependencies: true
+      
+  crawl:
+    enabled: true
+    primary_tool: "hakrawler"
+    fallback_tools: []
+    validate_findings: false
+    max_findings: 3000
+    cache_ttl: "2h"
+    
+  dirfuzz:
+    enabled: false
+    primary_tool: "ffuf"
+    fallback_tools: []
+    validate_findings: true
+    max_findings: 1000
+    cache_ttl: "1h"
+    requires_confirmation: true
+    
+  bypass:
+    enabled: false
+    primary_tool: "byp4xx"
+    fallback_tools: []
+    validate_findings: true
+    max_findings: 500
+    cache_ttl: "30m"
+    requires_confirmation: true
+
+# Tool configurations
+tools:
+  gau:
+    path: "gau"
+    enabled: true
+    timeout: "5m"
+    args: ["--threads", "10", "--timeout", "30"]
+    json_support: false
+    version_check: true
+    install_command: "go install github.com/lc/gau/v2/cmd/gau@latest"
+   
+  cloud_enum:
+    path: "cloud_enum"
+    enabled: true
+    timeout: "10m"
+    args: ["--threads", "5"]
+    json_support: true
+    json_flags: ["--output-format", "json"]
+   
+  smap:
+    path: "smap"
+    enabled: false
+    timeout: "20m"
+    args: ["--top-ports", "1000", "-T4"]
+    rate_limit: "100/s"
+    requires_confirmation: true
+   
+  meg:
+    path: "meg"
+    enabled: true
+    timeout: "10m"
+    args: ["--concurrency", "20", "--delay", "100ms"]
+   
+  jsluice:
+    path: "jsluice"
+    enabled: true
+    timeout: "5m"
+    args: ["--output-format", "json"]
+    json_support: true
+    install_command: "go install github.com/BishopFox/jsluice/cmd/jsluice@latest"
+    
+  hakcheckurl:
+    path: "hakcheckurl"
+    enabled: true
+    timeout: "10m"
+    args: ["-json", "-t", "50"]
+    json_support: true
+    install_command: "go install github.com/hakluke/hakcheckurl@latest"
+    
+  hakrawler:
+    path: "hakrawler"
+    enabled: true
+    timeout: "15m"
+    args: ["-json", "-depth", "3"]
+    json_support: true
+    install_command: "go install github.com/hakluke/hakrawler@latest"
+    
+  ffuf:
+    path: "ffuf"
+    enabled: false
+    timeout: "30m"
+    args: ["-json", "-t", "20", "-mc", "200,301,302,403"]
+    json_support: true
+    requires_confirmation: true
+    install_command: "go install github.com/ffuf/ffuf@latest"
+
+# Intelligence configurations
+intelligence:
+  correlation_rules:
+    - name: "Cloud Storage Exposure"
+      description: "Correlate exposed cloud storage with sensitive data"
+      conditions:
+        - plugin: "cloud"
+          field: "public"
+          value: true
+        - plugin: "js"
+          field: "secrets_found"
+          value: true
+      risk_multiplier: 2.0
+      
+    - name: "API Key Exposure"
+      description: "API keys found in accessible locations"
+      conditions:
+        - plugin: "github"
+          field: "secret_type"
+          value: "api_key"
+      correlate_with: ["wayback", "js"]
+      risk_multiplier: 1.5
+ 
+  anomaly_detection:
+    enabled: true
+    models:
+      - type: "response_time"
+        threshold: 3.0
+        window: "5m"
+      - type: "content_change"
+        sensitivity: 0.7
+      - type: "behavioral"
+        baseline_period: "24h"
+ 
+  attack_paths:
+    max_depth: 5
+    min_likelihood: 0.3
+    consider_mitigations: true
+   
+  risk_scoring:
+    algorithm: "weighted_average"
+    factors:
+      - name: "exposure"
+        weight: 0.3
+      - name: "exploitability"
+        weight: 0.4
+      - name: "impact"
+        weight: 0.3
+
+# Security policies
+security:
+  sandboxing:
+    enabled: true
+    default_policy: "restricted"
+    policies:
+      restricted:
+        allow_network: ["tcp:80", "tcp:443", "udp:53"]
+        deny_syscalls: ["ptrace", "mount"]
+        max_memory_mb: 256
+        max_cpu_percent: 25
+      moderate:
+        allow_network: ["tcp:*", "udp:53"]
+        max_memory_mb: 512
+        max_cpu_percent: 50
+      unrestricted:
+        allow_all: true
+ 
+  secret_sanitization:
+    patterns:
+      - name: "aws_key"
+        regex: "AKIA[0-9A-Z]{16}"
+        action: "redact"
+      - name: "github_token"
+        regex: "ghp_[0-9a-zA-Z]{36}"
+        action: "redact"
+      - name: "generic_api"
+        regex: "[Aa]pi[_-]?[Kk]ey['\"]?\\s*[:=]\\s*['\"]?[0-9a-zA-Z]{16,}"
+        action: "redact"
+ 
+  compliance:
+    mode: "standard" # standard|gdpr|hipaa|pci
+    data_retention_days: 90
+    encryption_at_rest: true
+    audit_logging: true
+
+# Environment variables
+environment:
+  # GitHub scanning
+  GITHUB_TOKEN: "${GITHUB_TOKEN}"
+  
+  # Cloud enumeration
+  AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+  AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+  AZURE_CLIENT_ID: "${AZURE_CLIENT_ID}"
+  AZURE_CLIENT_SECRET: "${AZURE_CLIENT_SECRET}"
+  GCP_PROJECT_ID: "${GCP_PROJECT_ID}"
+  
+  # API integrations
+  SHODAN_API_KEY: "${SHODAN_API_KEY}"
+  CENSYS_API_ID: "${CENSYS_API_ID}"
+  CENSYS_API_SECRET: "${CENSYS_API_SECRET}"
+  VIRUSTOTAL_API_KEY: "${VIRUSTOTAL_API_KEY}"
+  URLSCAN_API_KEY: "${URLSCAN_API_KEY}"
+
+# Target-specific overrides
+targets:
+  "example.com":
+    profile: "stealth"
+    plugins:
+      cloud:
+        enabled: true
+        validate_findings: false
+      portscan:
+        enabled: true
+        max_findings: 100
+    scope:
+      include:
+        - "*.example.com"
+        - "api.example.com"
+      exclude:
+        - "internal.example.com"
+    rate_limit:
+      requests_per_second: 5

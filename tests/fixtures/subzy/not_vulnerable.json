@@ -1,0 +1,10 @@
+{
+  "subdomain": "www.example.com",
+  "service": "CloudFlare",
+  "status_code": 200,
+  "vulnerable": false,
+  "verified": false,
+  "fingerprint": "",
+  "response": "200 OK",
+  "timestamp": "2024-01-15T14:33:00Z"
+}

@@ -1,0 +1,334 @@
+# GoRecon Docker Compose Configuration
+# Comprehensive deployment setup for development and production
+
+version: '3.8'
+
+services:
+  # Main GoRecon application
+  gorecon:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: gorecon
+    ports:
+      - "8080:8080"     # REST API
+      - "8081:8081"     # WebSocket streaming
+      - "9090:9090"     # Metrics
+    environment:
+      - GORECON_CONFIG_PATH=/etc/gorecon/config.yaml
+      - GORECON_LOG_LEVEL=info
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgresql://gorecon:password@postgres:5432/gorecon?sslmode=disable
+      - JWT_SECRET=your-jwt-secret-here
+      - ENVIRONMENT=production
+    volumes:
+      - ../configs/docker-config.yaml:/etc/gorecon/config.yaml:ro
+      - gorecon-data:/var/lib/gorecon
+      - gorecon-logs:/var/log/gorecon
+      - gorecon-workspace:/workspace
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - gorecon-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/app/gorecon", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis for caching and pub/sub
+  redis:
+    image: redis:7-alpine
+    container_name: gorecon-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - gorecon-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: >
+      sh -c "
+        redis-server
+        --appendonly yes
+        --appendfsync everysec
+        --maxmemory 512mb
+        --maxmemory-policy allkeys-lru
+      "
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:15-alpine
+    container_name: gorecon-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=gorecon
+      - POSTGRES_USER=gorecon
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../migrations:/docker-entrypoint-initdb.d
+    networks:
+      - gorecon-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gorecon -d gorecon"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: gorecon-prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - gorecon-network
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+
+  # Grafana for metrics visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: gorecon-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - gorecon-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+  # Jaeger for distributed tracing
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: gorecon-jaeger
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "14268:14268"   # Jaeger HTTP collector
+      - "14250:14250"   # Jaeger gRPC collector
+    environment:
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+    networks:
+      - gorecon-network
+    restart: unless-stopped
+
+  # Elasticsearch for log aggregation (optional)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.8.0
+    container_name: gorecon-elasticsearch
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - gorecon-network
+    restart: unless-stopped
+    profiles:
+      - logging
+
+  # Kibana for log visualization (optional)
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.8.0
+    container_name: gorecon-kibana
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    networks:
+      - gorecon-network
+    restart: unless-stopped
+    depends_on:
+      - elasticsearch
+    profiles:
+      - logging
+
+  # MinIO for S3-compatible storage (optional)
+  minio:
+    image: minio/minio:latest
+    container_name: gorecon-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin123
+    volumes:
+      - minio-data:/data
+    networks:
+      - gorecon-network
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    profiles:
+      - storage
+
+  # Nginx reverse proxy and load balancer
+  nginx:
+    image: nginx:alpine
+    container_name: gorecon-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - nginx-logs:/var/log/nginx
+    networks:
+      - gorecon-network
+    restart: unless-stopped
+    depends_on:
+      - gorecon
+    profiles:
+      - production
+
+  # Worker nodes for distributed scanning
+  gorecon-worker-1:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: gorecon-worker-1
+    environment:
+      - GORECON_MODE=worker
+      - GORECON_COORDINATOR_URL=http://gorecon:8090
+      - GORECON_WORKER_ID=worker-1
+      - GORECON_WORKER_CAPABILITIES=cloud,vuln,recon
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - gorecon-worker1-workspace:/workspace
+    networks:
+      - gorecon-network
+    restart: unless-stopped
+    depends_on:
+      - gorecon
+      - redis
+    profiles:
+      - distributed
+
+  gorecon-worker-2:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: gorecon-worker-2
+    environment:
+      - GORECON_MODE=worker
+      - GORECON_COORDINATOR_URL=http://gorecon:8090
+      - GORECON_WORKER_ID=worker-2
+      - GORECON_WORKER_CAPABILITIES=web,js,param
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - gorecon-worker2-workspace:/workspace
+    networks:
+      - gorecon-network
+    restart: unless-stopped
+    depends_on:
+      - gorecon
+      - redis
+    profiles:
+      - distributed
+
+  # Development tools (only for dev profile)
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: gorecon-mailhog
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    networks:
+      - gorecon-network
+    restart: unless-stopped
+    profiles:
+      - development
+
+  adminer:
+    image: adminer:latest
+    container_name: gorecon-adminer
+    ports:
+      - "8080:8080"
+    networks:
+      - gorecon-network
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    profiles:
+      - development
+
+volumes:
+  # Application data
+  gorecon-data:
+    driver: local
+  gorecon-logs:
+    driver: local
+  gorecon-workspace:
+    driver: local
+  gorecon-worker1-workspace:
+    driver: local
+  gorecon-worker2-workspace:
+    driver: local
+
+  # Database data
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+
+  # Monitoring data
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+  # Optional services
+  elasticsearch-data:
+    driver: local
+  minio-data:
+    driver: local
+  nginx-logs:
+    driver: local
+
+networks:
+  gorecon-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Configuration for different deployment profiles
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "100m"
+    max-file: "3"
+    labels: "service,environment"

@@ -1,0 +1,46 @@
+/* Additional CSS for API enhancements */
+.api-enhanced {
+    animation: fadeIn 1s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.interactive-demo {
+    background: #f8f9ff;
+    border: 2px dashed #e1e5f2;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 20px 0;
+    text-align: center;
+}
+
+.demo-button {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 25px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.demo-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+}
+
+.response-viewer {
+    background: #2d3748;
+    color: #e2e8f0;
+    border-radius: 8px;
+    padding: 20px;
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-size: 0.9rem;
+    margin-top: 15px;
+    white-space: pre-wrap;
+    overflow-x: auto;
+}

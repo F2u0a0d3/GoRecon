@@ -1,0 +1,48 @@
+[
+  {
+    "subdomain": "edge1.example.com",
+    "service": "Netlify",
+    "status_code": 404,
+    "vulnerable": true,
+    "verified": true,
+    "fingerprint": "Not Found - Request ID: 01HMN123456789",
+    "response": "Page not found",
+    "timestamp": "2024-01-15T14:30:00Z"
+  },
+  {
+    "subdomain": "edge2.example.com",
+    "service": "Vercel",
+    "status_code": 404,
+    "vulnerable": true,
+    "verified": false,
+    "fingerprint": "The deployment could not be found on Vercel",
+    "timestamp": "2024-01-15T14:31:00Z"
+  },
+  {
+    "subdomain": "edge3.example.com",
+    "service": "Azure",
+    "status_code": 404,
+    "vulnerable": true,
+    "verified": true,
+    "fingerprint": "Web app does not exist",
+    "timestamp": "2024-01-15T14:32:00Z"
+  },
+  {
+    "subdomain": "edge4.example.com",
+    "service": "Firebase",
+    "status_code": 404,
+    "vulnerable": false,
+    "verified": false,
+    "fingerprint": "Hosting site not found",
+    "timestamp": "2024-01-15T14:33:00Z"
+  },
+  {
+    "subdomain": "special-chars-123.example.com",
+    "service": "GitHub Pages",
+    "status_code": 404,
+    "vulnerable": true,
+    "verified": true,
+    "fingerprint": "404 GitHub Pages",
+    "timestamp": "2024-01-15T14:34:00Z"
+  }
+]
