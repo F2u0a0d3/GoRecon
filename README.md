@@ -1,5 +1,7 @@
 # 🔍 GoRecon
 
+> **Collaborator Elmir Hajizada**
+
 > **Intelligence-Driven Penetration Testing Framework**
 
 [![Go Version](https://img.shields.io/badge/Go-1.21+-blue.svg)](https://golang.org)
